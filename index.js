@@ -4,13 +4,12 @@ const h = require('mutant/html-element')
 const computed = require('mutant/computed')
 const Value = require('mutant/computed')
 const List = require('tre-endless-list')
-const winder = require('./date-winder')
+const Source = require('./source')
 const styles = require('module-styles')('tre-dates')
-const Resolver = require('./resolver')
 const dayjs = require('dayjs')
 
 module.exports = function(ssb) {
-  const resolve = Resolver(ssb)
+  const source = Source(ssb)
 
   styles(`
     .tre-dates .tre-endless-list {
@@ -31,6 +30,7 @@ module.exports = function(ssb) {
       contentObs.set(o)
     }
     const syntaxErrorObs = ctx.syntaxErrorObs || Value()
+    ctx.syntaxErrorObs = syntaxErrorObs
 
     const renderStr = Str({
       save: name => set({name})
@@ -99,6 +99,7 @@ module.exports = function(ssb) {
       h('input.recurrence', {
         style: {
           visibility: computed(repeats, x => x ? 'visible' : 'hidden'),
+          border: computed(ctx.syntaxErrorObs, e => e ? '2px solid red' : '')
         },
         type: 'text',
         value: fields.get('recurrence') || '',
@@ -159,22 +160,13 @@ module.exports = function(ssb) {
           })
         }
       }),
-      computed( [fields.get('date'), fields.get('recurrence'), resolve(fields.get('date'), fields.get('repeatUntil'))], (d, r, lte) => {
-        if (!r) return []
-        let future, past
-        const opts = lte ? {lte} : {}
-        console.log('opts',opts)
-        try {
-          future = winder(`${d}|${r}`, opts)
-        } catch(e) {
-          syntaxErrorObs.set(e.message)
-          return h('div.error', e.message)
-        }
-        if (!future) {
-          return h('.msg', 'no recurrence')
-        }
-        return List(future, null, ({date, name}) => {
-          return h('li', computed(fields.get('name'), x => `${date} ${name || x}`))
+      computed([repeats, ctx.syntaxErrorObs], (repeats, errMessage) => {
+        if (errMessage) return h('div.error', errMessage)
+        if (!repeats) return h('.tre-endless-list', 'no recurrence')
+        return computed(source(kv, ctx), ({source}) => {
+          return List(source, null, ({date, name}) => {
+            return h('li', computed(fields.get('name'), x => `${date} ${name || x}`))
+          })
         })
       }),
       h('div.wholeDay', [
