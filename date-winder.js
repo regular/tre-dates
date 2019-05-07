@@ -35,7 +35,7 @@ const codec = {
   },
   encode: nd => {
     return {
-      date: nd.date.format('ddd, YYYY-MM-DD'),
+      date: nd.date.format('YYYY-MM-DD'),
       name: nd.name
     }
   }

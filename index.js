@@ -7,6 +7,7 @@ const List = require('tre-endless-list')
 const Source = require('./source')
 const styles = require('module-styles')('tre-dates')
 const dayjs = require('dayjs')
+const format = require('./format')
 
 module.exports = function(ssb) {
   const source = Source(ssb)
@@ -164,8 +165,10 @@ module.exports = function(ssb) {
         if (errMessage) return h('div.error', errMessage)
         if (!repeats) return h('.tre-endless-list', 'no recurrence')
         return computed(source(kv, ctx), ({source}) => {
-          return List(source, null, ({date, name}) => {
-            return h('li', computed(fields.get('name'), x => `${date} ${name || x}`))
+          return List(source(), null, ({date, name}) => {
+            return h('li', computed([fields.get('name'), fields.get('time')], (defaultName, time) => {
+              return format(date, time, name || defaultName)
+            }))
           })
         })
       }),
@@ -206,9 +209,9 @@ module.exports = function(ssb) {
       h('textarea.notes', {
         rows: 5,
         cols: 40,
-        'ev-input': ev => set({note: ev.target.value})
-      }, fields.get('notes'))
-
+        value: fields.get('notes', ''),
+        'ev-input': ev => set({notes: ev.target.value})
+      })
     ])
   }
 }

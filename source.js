@@ -10,31 +10,49 @@ module.exports = function(ssb) {
 
   return function(kv, ctx) {
     if ((kv && kv.value.content.type) !== 'date') return Value(pull.values([]))
+    const revRoot = revisionRoot(kv)
     const fields = Fields(ssb)(kv, ctx)
 
     const date = fields.get('date')
+    const time = fields.get('time')
     const recurrence = fields.get('recurrence')
     const repeatUntil = fields.get('repeatUntil')
     const name = fields.get('name')
     const lte = resolve(date, repeatUntil)
 
-    return computed([date, recurrence, name, lte], (date, recurrence, name, lte) => {
-      if (!recurrence) return {source: pull.values([{date, name}])}
+    return computed([date, time, recurrence, name, lte], (date, time, recurrence, name, lte) => {
+      if (!recurrence) return {
+        source: ()=>{ 
+          return pull.values([{
+            date, time, name,
+            revisionRoot: revRoot
+          }])
+        }
+      }
       let future
       const opts = lte ? {lte} : {}
-      try {
-        future = winder(`${date}|${recurrence}`, opts)
-      } catch(err) {
-        if (ctx.syntaxErrorObs) ctx.syntaxErrorObs.set(err.message)
-        return {source: pull.error(err)}
+      return {
+        source: ()=> {
+          try {
+            future = winder(`${date}|${recurrence}`, opts)
+          } catch(err) {
+            if (ctx.syntaxErrorObs) ctx.syntaxErrorObs.set(err.message)
+            return pull.error(err)
+          }
+          return pull(
+            future,
+            pull.through(o =>{
+              o.name = o.name || name
+              o.time = time
+              o.revisionRoot = revRoot
+            })
+          )
+        }
       }
-      const namedFuture = pull(
-        future,
-        pull.through(o =>{
-          o.name = o.name || name
-        })
-      )
-      return {source: namedFuture}
     })
   }
+}
+
+function revisionRoot(kv) {
+  return kv.value.content.revisionRoot || kv.key
 }
